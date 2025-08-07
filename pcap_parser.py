@@ -4,9 +4,9 @@ import numpy as np
 import time
 
 # --- Configuration ---
-PCAP_FILE = 'traffic.pcap'
+PCAP_FILE = 'input.pcap'
 PROCESSED_CSV_FILE = 'processed_data.csv'
-LAPTOP_IP = '192.168.1.100' # Please adjust if necessary
+LAPTOP_IP = '192.168.1.103' # Please adjust if necessary
 
 def calculate_rtt(packets, laptop_ip):
     """
