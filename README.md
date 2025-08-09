@@ -48,9 +48,9 @@ You must train the model on your own network traffic data for accurate predictio
     ```
     This script trains a new model and saves it as `congestion_model.keras` and the corresponding feature scaler as `scaler.gz`.
 
-### 3. Making a Prediction
+### 3. Making a Prediction from a File
 
-Once the model is trained, you can predict congestion on a new `.pcap` file.
+Once the model is trained, you can predict congestion on a `.pcap` file.
 
 ```bash
 python predict.py /path/to/your/new_capture.pcap --ip YOUR_LAPTOP_IP
@@ -60,3 +60,36 @@ python predict.py /path/to/your/new_capture.pcap --ip YOUR_LAPTOP_IP
 - Replace `YOUR_LAPTOP_IP` with the local IP of the machine where the capture was taken.
 
 The script will process the file, use the last minute of traffic data (12 intervals of 5 seconds) to predict the average RTT in the next 5-second interval, and output a corresponding congestion status.
+
+### 4. Real-Time Congestion Prediction
+
+This is the most advanced feature of the project. This script will listen to live network traffic on one of your machine's network interfaces and predict congestion in real-time.
+
+**A. Find Your Network Interface Name**
+
+You need to tell the script which network interface to listen on. Run the `realtime_predictor.py` script without the `--iface` argument to see a list of available interfaces.
+
+```bash
+python realtime_predictor.py --ip YOUR_LAPTOP_IP
+```
+
+Look for the one that corresponds to your Wi-Fi or Ethernet connection.
+- On **Linux/macOS**, it might be `wlan0`, `en0`, etc.
+- On **Windows**, it will be a longer name like `Wi-Fi` or `Ethernet`.
+
+**B. Run the Real-Time Predictor**
+
+Once you have your interface name, run the script with both the `--ip` and `--iface` arguments.
+
+```bash
+# Example for Linux/macOS
+sudo python realtime_predictor.py --ip 192.168.1.103 --iface wlan0
+
+# Example for Windows
+# You may need to run your terminal as an Administrator
+python realtime_predictor.py --ip 192.168.1.103 --iface "Wi-Fi"
+```
+
+**Note:** Live packet sniffing requires elevated privileges. You will likely need to run this command with `sudo` on Linux/macOS or in an Administrator terminal on Windows.
+
+The script will start sniffing packets and, after collecting enough initial data (60 seconds worth), it will begin printing a new prediction every 5 seconds. Press `Ctrl+C` to stop the script.
