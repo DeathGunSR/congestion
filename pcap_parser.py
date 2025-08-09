@@ -4,14 +4,14 @@ import numpy as np
 import time
 
 # --- Configuration ---
-PCAP_FILE = 'input.pcap'
+PCAP_FILE = 'traffic.pcap'
 PROCESSED_CSV_FILE = 'processed_data.csv'
-LAPTOP_IP = '192.168.1.103' # Please adjust if necessary
+LAPTOP_IP = '192.168.1.100' # Please adjust if necessary
+TIME_INTERVAL = '5S' # Resample data into 5-second intervals
 
 def calculate_rtt(packets, laptop_ip):
     """
     Calculates Round-Trip Time (RTT) for TCP packets.
-    This function has been improved to better match TCP SEQ/ACK pairs.
     """
     sent_packets = {}
     rtt_records = []
@@ -23,54 +23,44 @@ def calculate_rtt(packets, laptop_ip):
         src_ip = pkt[IP].src
         dst_ip = pkt[IP].dst
 
-        # Packet sent from the laptop (DATA)
         if src_ip == laptop_ip and len(pkt[TCP].payload) > 0:
-            # Store the time the packet was sent, keyed by SEQ number
             sent_packets[pkt[TCP].seq] = pkt.time
-
-        # Packet received by the laptop (ACK)
-        elif dst_ip == laptop_ip and pkt[TCP].flags & 0x10: # Check for ACK flag
-            # Find the corresponding sent packet
+        elif dst_ip == laptop_ip and pkt[TCP].flags & 0x10:
             ack = pkt[TCP].ack
             if ack in sent_packets:
                 sent_time = sent_packets[ack]
                 rtt = pkt.time - sent_time
-                rtt_records.append({
-                    'timestamp': pkt.time,
-                    'rtt': float(rtt)
-                })
-                # Remove matched SEQ to prevent duplicates and keep dict small
+                rtt_records.append({'timestamp': pkt.time, 'rtt': float(rtt)})
                 del sent_packets[ack]
 
     return rtt_records
 
-
-def create_features(df):
+def resample_and_aggregate(df, interval):
     """
-    Engineers features from the raw packet data.
+    Resamples the dataframe into fixed time intervals and aggregates features.
     """
-    # Ensure dataframe is sorted by time
-    df = df.sort_values(by='timestamp').reset_index(drop=True)
-
-    # Calculate inter-arrival time
-    df['interarrival_time'] = df['timestamp'].diff().dt.total_seconds().fillna(0)
-
-    # Calculate packets per second (rolling window of 1 second)
     df.set_index('timestamp', inplace=True)
-    df['packets_per_second'] = df['length'].rolling('1s').count()
 
-    # Calculate throughput in bytes per second (rolling window of 1 second)
-    df['throughput_bps'] = df['length'].rolling('1s').sum()
+    # Define aggregation rules
+    agg_rules = {
+        'length': 'sum',      # Total bytes in interval
+        'rtt': 'mean',        # Average RTT in interval
+        'is_from_laptop': 'count' # Total packets in interval
+    }
 
-    df.reset_index(inplace=True)
-    df.fillna(0, inplace=True)
+    resampled_df = df.resample(interval).agg(agg_rules)
+    resampled_df.rename(columns={'is_from_laptop': 'packet_count'}, inplace=True)
 
-    return df
+    # Fill NaN values that result from empty intervals
+    resampled_df['rtt'] = resampled_df['rtt'].fillna(0)
+    resampled_df.reset_index(inplace=True)
 
+    print(f"Data resampled into {interval} intervals.")
+    return resampled_df
 
 def process_pcap(pcap_file, laptop_ip):
     """
-    Reads a pcap file, extracts features, engineers new features,
+    Reads a pcap file, extracts features, aggregates them into time windows,
     and saves the data to a CSV file.
     """
     print(f"Reading pcap file: {pcap_file}...")
@@ -78,7 +68,6 @@ def process_pcap(pcap_file, laptop_ip):
         packets = rdpcap(pcap_file)
     except FileNotFoundError:
         print(f"Error: The file '{pcap_file}' was not found.")
-        print("Please make sure the pcap file is in the same directory.")
         return
 
     print(f"Total packets read: {len(packets)}")
@@ -96,12 +85,9 @@ def process_pcap(pcap_file, laptop_ip):
         return
 
     df = pd.DataFrame(data)
-    # Coerce errors will turn problematic values into NaT (Not a Time)
     df['timestamp'] = pd.to_numeric(df['timestamp'], errors='coerce')
-    df.dropna(subset=['timestamp'], inplace=True) # Drop rows where timestamp was invalid
+    df.dropna(subset=['timestamp'], inplace=True)
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
-
-    print("Basic feature extraction complete.")
 
     # --- RTT Calculation ---
     print("Calculating RTT for TCP packets...")
@@ -115,36 +101,18 @@ def process_pcap(pcap_file, laptop_ip):
 
         # Merge RTT data with the main dataframe
         df = pd.merge_asof(df.sort_values('timestamp'), rtt_df.sort_values('timestamp'), on='timestamp', direction='backward')
-        df['rtt'] = df['rtt'].fillna(method='ffill').fillna(0) # Forward fill and then zero fill
-        print(f"RTT calculation complete. Found {len(rtt_df)} RTT values.")
+        df['rtt'] = df['rtt'].fillna(method='ffill').fillna(0)
     else:
-        print("Could not calculate any RTT values. RTT column will be zero.")
         df['rtt'] = 0
 
-    # --- Advanced Feature Engineering ---
-    print("Engineering additional features (inter-arrival time, throughput)...")
-    df = create_features(df)
+    # --- Resample and Aggregate Data ---
+    aggregated_df = resample_and_aggregate(df, TIME_INTERVAL)
 
     # --- Save to CSV ---
-    # Select final columns for the model
-    final_columns = [
-        'timestamp',
-        'length',
-        'is_from_laptop',
-        'rtt',
-        'interarrival_time',
-        'packets_per_second',
-        'throughput_bps'
-    ]
-    df = df[final_columns]
-
-    df.to_csv(PROCESSED_CSV_FILE, index=False)
-    print(f"Processed data with engineered features saved to {PROCESSED_CSV_FILE}")
-
+    aggregated_df.to_csv(PROCESSED_CSV_FILE, index=False)
+    print(f"Aggregated data saved to {PROCESSED_CSV_FILE}")
 
 if __name__ == '__main__':
-    # You might need to change this IP depending on your network setup
-    # It should be the IP of the machine where the capture was taken
     laptop_ip_address = input(f"Enter the laptop's IP address (default: {LAPTOP_IP}): ")
     if not laptop_ip_address:
         laptop_ip_address = LAPTOP_IP
