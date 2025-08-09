@@ -6,7 +6,7 @@ import time
 # --- Configuration ---
 PCAP_FILE = 'traffic.pcap'
 PROCESSED_CSV_FILE = 'processed_data.csv'
-LAPTOP_IP = '192.168.1.100' # Please adjust if necessary
+LAPTOP_IP = '192.168.1.103' # Please adjust if necessary
 TIME_INTERVAL = '5S' # Resample data into 5-second intervals
 
 def calculate_rtt(packets, laptop_ip):
