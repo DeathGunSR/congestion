@@ -7,7 +7,6 @@ PROCESSED_CSV_FILE = 'processed_data.csv'
 LAPTOP_IP = '192.168.1.100' # Default laptop IP
 TIME_INTERVAL = '5S'
 
-
 def main():
     """
     Main function to parse a pcap file and save the processed data.
