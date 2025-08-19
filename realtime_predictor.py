@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 # --- Configuration ---
 MODEL_FILE = 'congestion_model.keras'
 SCALER_FILE = 'scaler.gz'
-SEQUENCE_LENGTH = 2
+SEQUENCE_LENGTH = 60
 TIME_INTERVAL_SECONDS = 0.5
 
 # --- Prediction Thresholds ---
