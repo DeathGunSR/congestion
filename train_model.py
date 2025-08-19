@@ -12,16 +12,16 @@ import joblib
 PROCESSED_CSV_FILE = 'processed_data.csv'
 MODEL_FILE = 'congestion_model.keras'
 SCALER_FILE = 'scaler.gz'
-SEQUENCE_LENGTH = 12 # 12 * 5s = 1 minute of past data
-PREDICTION_HORIZON = 1 # Predict the next 5-second interval
+SEQUENCE_LENGTH = 2 # 2 * 0.5s = 1 second of past data
+PREDICTION_HORIZON = 10 # 10 * 0.5s = 5 seconds of future prediction
 
 def generate_dummy_data():
     """Generates dummy aggregated data if the processed CSV is not found."""
     print("Generating dummy aggregated data for training...")
     n_samples = 200 # Fewer samples, as each represents a 5s interval
 
-    # Create a datetime index with 5-second frequency
-    timestamps = pd.to_datetime(pd.date_range(start='2025-01-01', periods=n_samples, freq='5S'))
+    # Create a datetime index with 0.5-second frequency
+    timestamps = pd.to_datetime(pd.date_range(start='2025-01-01', periods=n_samples, freq='0.5S'))
 
     data = {
         'timestamp': timestamps,
