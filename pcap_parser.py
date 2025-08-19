@@ -5,7 +5,7 @@ from feature_extractor import process_packets
 PCAP_FILE = 'training_traffic.pcap' # Default file for training
 PROCESSED_CSV_FILE = 'processed_data.csv'
 LAPTOP_IP = '192.168.1.100' # Default laptop IP
-TIME_INTERVAL = '5S'
+TIME_INTERVAL = '0.5S'
 
 def main():
     """

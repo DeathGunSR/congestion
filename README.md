@@ -1,10 +1,10 @@
 # Network Congestion Prediction using LSTM
 
-This project uses a Long Short-Term Memory (LSTM) neural network to predict network congestion by analyzing `.pcap` traffic files. The system aggregates traffic data into fixed time intervals (default is 5 seconds) and uses a sequence of these intervals to predict future congestion.
+This project uses a Long Short-Term Memory (LSTM) neural network to predict network congestion by analyzing `.pcap` traffic files. The system aggregates traffic data into fixed time intervals (default is 0.5 seconds) and uses a short sequence of these intervals to predict congestion 5 seconds into the future.
 
 ## Project Structure
 
-- `pcap_parser.py`: A script to parse a `.pcap` file, aggregate features into 5-second intervals, and save them as a CSV.
+- `pcap_parser.py`: A script to parse a `.pcap` file, aggregate features into 0.5-second intervals, and save them as a CSV.
 - `train_model.py`: A script to train the LSTM model on the aggregated time-series data.
 - `predict.py`: A script to make congestion predictions on new `.pcap` files using the trained model.
 - `requirements.txt`: A list of all the Python dependencies (`scapy`, `pandas`, `tensorflow`, `matplotlib`, etc.).
@@ -59,7 +59,7 @@ python predict.py /path/to/your/new_capture.pcap --ip YOUR_LAPTOP_IP
 - Replace `/path/to/your/new_capture.pcap` with the path to your file.
 - Replace `YOUR_LAPTOP_IP` with the local IP of the machine where the capture was taken.
 
-The script will process the file, use the last minute of traffic data (12 intervals of 5 seconds) to predict the average RTT in the next 5-second interval, and output a corresponding congestion status.
+The script will process the file, use the last 1 second of traffic data (2 intervals of 0.5 seconds) to predict the average RTT 5 seconds into the future, and output a corresponding congestion status.
 
 ### 4. Real-Time Congestion Prediction
 
@@ -92,7 +92,7 @@ python realtime_predictor.py --ip 192.168.1.103 --iface "Wi-Fi"
 
 **Note:** Live packet sniffing requires elevated privileges. You will likely need to run this command with `sudo` on Linux/macOS or in an Administrator terminal on Windows.
 
-The script will start sniffing packets and, after collecting enough initial data (60 seconds worth), it will begin printing a new prediction every 5 seconds and updating a live plot. Press `Ctrl+C` to stop the script.
+The script will start sniffing packets and, after collecting enough initial data (1 second worth), it will begin printing a new prediction every 0.5 seconds and updating a live plot. Press `Ctrl+C` to stop the script.
 
 A plot window will open, showing a live comparison between the actual measured RTT and the RTT predicted by the model, allowing for a direct visual assessment of the model's accuracy.
 
