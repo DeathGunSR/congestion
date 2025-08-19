@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 # --- Configuration ---
 MODEL_FILE = 'congestion_model.keras'
 SCALER_FILE = 'scaler.gz'
-SEQUENCE_LENGTH = 12
-TIME_INTERVAL_SECONDS = 5
+SEQUENCE_LENGTH = 2
+TIME_INTERVAL_SECONDS = 0.5
 
 # --- Prediction Thresholds ---
 SEVERE_CONGESTION_THRESHOLD = 0.1
@@ -96,7 +96,7 @@ def main():
                 ax.clear()
                 ax.plot(time_steps, actual_rtts, 'bo-', label='Actual RTT')
                 ax.plot(time_steps, predicted_rtts, 'ro--', label='Predicted RTT')
-                ax.set_xlabel("Time Intervals (5s each)")
+                ax.set_xlabel(f"Time Intervals ({TIME_INTERVAL_SECONDS}s each)")
                 ax.set_ylabel("Round-Trip Time (s)")
                 ax.set_title("Real-Time vs. Predicted RTT")
                 ax.legend()
