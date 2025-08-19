@@ -12,7 +12,7 @@ import joblib
 PROCESSED_CSV_FILE = 'processed_data.csv'
 MODEL_FILE = 'congestion_model.keras'
 SCALER_FILE = 'scaler.gz'
-SEQUENCE_LENGTH = 60 # 60 * 0.5s = 30 seconds of history
+SEQUENCE_LENGTH = 10 # 10 * 0.5s = 5 seconds of history
 PREDICTION_HORIZON = 2 # 2 * 0.5s = 1 second of future prediction
 
 def generate_dummy_data():
