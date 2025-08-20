@@ -28,33 +28,48 @@ def calculate_rtt(packets, laptop_ip):
 
     return rtt_records
 
-def resample_and_aggregate(df, interval):
+def resample_and_engineer_features(df, interval):
     """
-    Resamples the dataframe into fixed time intervals and aggregates features.
+    Resamples the dataframe and engineers advanced features for trend and volatility.
     """
     df.set_index('timestamp', inplace=True)
 
+    # Define aggregation rules for resampling
     agg_rules = {
         'length': 'sum',
-        'rtt': 'mean',
+        'rtt': ['mean', 'min', 'max', 'std'], # Calculate multiple stats for RTT
         'is_from_laptop': 'count'
     }
 
     resampled_df = df.resample(interval).agg(agg_rules)
-    resampled_df.rename(columns={'is_from_laptop': 'packet_count'}, inplace=True)
 
-    resampled_df['rtt'] = resampled_df['rtt'].fillna(0)
+    # Flatten the multi-level column index from aggregation
+    resampled_df.columns = ['_'.join(col).strip() for col in resampled_df.columns.values]
+    resampled_df.rename(columns={'is_from_laptop_count': 'packet_count'}, inplace=True)
+
+    # --- Engineer New Features ---
+
+    # Fill NaNs that result from empty intervals before calculating trends
+    resampled_df.fillna(0, inplace=True)
+
+    # 1. Momentum/Trend Features (the change from the previous interval)
+    resampled_df['rtt_mean_trend'] = resampled_df['rtt_mean'].diff().fillna(0)
+    resampled_df['packet_count_trend'] = resampled_df['packet_count'].diff().fillna(0)
+    resampled_df['length_sum_trend'] = resampled_df['length_sum'].diff().fillna(0)
+
+    # 2. Volatility Feature
+    # A simple measure of volatility: the difference between max and min RTT
+    resampled_df['rtt_volatility'] = resampled_df['rtt_max'] - resampled_df['rtt_min']
+
     resampled_df.reset_index(inplace=True)
 
-    print(f"Data resampled into {interval} intervals.")
+    print(f"Data resampled and advanced features engineered for {interval} intervals.")
     return resampled_df
 
 def process_packets(packets, laptop_ip, interval):
     """
-    Takes a list of scapy packets and returns a processed, aggregated DataFrame.
-    This function combines the logic for use by both file-based and real-time processing.
+    Takes a list of scapy packets and returns a processed, feature-engineered DataFrame.
     """
-    # --- Basic Feature Extraction ---
     data = []
     for pkt in packets:
         record = {'timestamp': pkt.time, 'length': len(pkt)}
@@ -66,25 +81,21 @@ def process_packets(packets, laptop_ip, interval):
         return pd.DataFrame()
 
     df = pd.DataFrame(data)
-    df['timestamp'] = pd.to_numeric(df['timestamp'], errors='coerce')
-    df.dropna(subset=['timestamp'], inplace=True)
+    df['timestamp'] = pd.to_numeric(df['timestamp'], errors='coerce').dropna()
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
 
-    # --- RTT Calculation ---
     rtt_data = calculate_rtt(packets, laptop_ip)
 
     if rtt_data:
         rtt_df = pd.DataFrame(rtt_data)
-        rtt_df['timestamp'] = pd.to_numeric(rtt_df['timestamp'], errors='coerce')
-        rtt_df.dropna(subset=['timestamp'], inplace=True)
+        rtt_df['timestamp'] = pd.to_numeric(rtt_df['timestamp'], errors='coerce').dropna()
         rtt_df['timestamp'] = pd.to_datetime(rtt_df['timestamp'], unit='s')
-
         df = pd.merge_asof(df.sort_values('timestamp'), rtt_df.sort_values('timestamp'), on='timestamp', direction='backward')
         df['rtt'] = df['rtt'].fillna(method='ffill').fillna(0)
     else:
         df['rtt'] = 0
 
-    # --- Resample and Aggregate Data ---
-    aggregated_df = resample_and_aggregate(df, interval)
+    # Use the new feature engineering function
+    engineered_df = resample_and_engineer_features(df, interval)
 
-    return aggregated_df
+    return engineered_df
