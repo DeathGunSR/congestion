@@ -74,7 +74,7 @@ def main():
         while True:
             print(f"\n[{pd.Timestamp.now()}] Sniffing for {TIME_INTERVAL_SECONDS} seconds...")
             sniffed_packets = sniff(iface=args.iface, timeout=TIME_INTERVAL_SECONDS)
-            new_row_df = process_packets(sniffed_packets, args.ip, f"{TIME_INTERVAL_SECONDS}S")
+            new_row_df = process_packets(sniffed_packets, args.ip, f"{int(TIME_INTERVAL_SECONDS * 1000)}ms")
 
             if not new_row_df.empty:
                 actual_rtt_value = new_row_df['rtt_mean'].iloc[0]
