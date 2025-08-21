@@ -7,7 +7,7 @@ import os
 import sys
 import json
 from collections import deque
-from scapy.all import sniff
+from scapy.all import sniff, TCP
 from feature_extractor import process_packets
 import matplotlib.pyplot as plt
 
@@ -74,16 +74,17 @@ def main():
         while True:
             print(f"\n[{pd.Timestamp.now()}] Sniffing for {TIME_INTERVAL_SECONDS} seconds...")
             sniffed_packets = sniff(iface=args.iface, timeout=TIME_INTERVAL_SECONDS)
-            new_row_df = process_packets(sniffed_packets, args.ip, f"{int(TIME_INTERVAL_SECONDS * 1000)}ms")
 
-            if not new_row_df.empty:
+            if sniffed_packets:
+                new_row_df = process_packets(sniffed_packets, args.ip, f"{int(TIME_INTERVAL_SECONDS * 1000)}ms")
                 actual_rtt_value = new_row_df['rtt_mean'].iloc[0]
                 data_queue.append(new_row_df[features_to_use].iloc[0].values)
+                print(f"Interval data collected. Actual RTT: {actual_rtt_value:.4f}s. Queue size: {len(data_queue)}")
             else:
+                print("No packets sniffed in the last interval.")
                 actual_rtt_value = 0.0
                 data_queue.append(np.zeros(len(features_to_use)))
-
-            print(f"Interval data collected. Actual RTT: {actual_rtt_value:.4f}s. Queue size: {len(data_queue)}")
+                print(f"Appending zeros. Queue size: {len(data_queue)}")
 
             if len(data_queue) == SEQUENCE_LENGTH:
                 # Check for TCP packets in the last interval before predicting
