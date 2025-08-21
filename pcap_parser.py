@@ -9,7 +9,7 @@ DATA_DIR = 'data'
 PROCESSED_CSV_FILE = 'processed_data.csv'
 ACTIVITY_MAP_FILE = 'activity_map.json'
 LAPTOP_IP = '192.168.1.100'
-TIME_INTERVAL = '0.5S'
+TIME_INTERVAL = '500ms'
 
 def get_activity_from_filename(filename):
     """Extracts the base activity name from the pcap filename."""

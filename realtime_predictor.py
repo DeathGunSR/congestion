@@ -74,7 +74,7 @@ def main():
         while True:
             print(f"\n[{pd.Timestamp.now()}] Sniffing for {TIME_INTERVAL_SECONDS} seconds...")
             sniffed_packets = sniff(iface=args.iface, timeout=TIME_INTERVAL_SECONDS)
-            new_row_df = process_packets(sniffed_packets, args.ip, f"{TIME_INTERVAL_SECONDS}S")
+            new_row_df = process_packets(sniffed_packets, args.ip, f"{int(TIME_INTERVAL_SECONDS * 1000)}ms")
 
             if not new_row_df.empty:
                 actual_rtt_value = new_row_df['rtt_mean'].iloc[0]
@@ -86,10 +86,31 @@ def main():
             print(f"Interval data collected. Actual RTT: {actual_rtt_value:.4f}s. Queue size: {len(data_queue)}")
 
             if len(data_queue) == SEQUENCE_LENGTH:
+                # Check for TCP packets in the last interval before predicting
+                has_tcp = any(TCP in pkt for pkt in sniffed_packets)
+
+                if has_tcp:
+                    # --- Make new prediction for the NEXT interval ---
+                    ts_data = np.array(list(data_queue))
+                    scaled_ts_data = scaler.transform(ts_data)
+
+                    model_input = [
+                        np.expand_dims(scaled_ts_data, axis=0),
+                        np.array([activity_index])
+                    ]
+
+                    current_prediction = model.predict(model_input, verbose=0)[0][0]
+                else:
+                    # If no TCP packets, override prediction to 0
+                    print("No TCP packets detected. Overriding prediction to 0.")
+                    current_prediction = 0.0
+
+                # Plot the actual RTT from this interval and the prediction made in the *last* interval
                 time_steps.append(time_counter)
                 actual_rtts.append(actual_rtt_value)
                 predicted_rtts.append(last_prediction if last_prediction is not None else 0)
 
+                # Update the plot
                 ax.clear()
                 ax.plot(time_steps, actual_rtts, 'bo-', label='Actual RTT')
                 ax.plot(time_steps, predicted_rtts, 'ro--', label='Predicted RTT')
@@ -101,16 +122,8 @@ def main():
                 fig.canvas.draw()
                 plt.pause(0.01)
 
-                ts_data = np.array(list(data_queue))
-                scaled_ts_data = scaler.transform(ts_data)
-
-                # Prepare inputs for the multi-input model
-                model_input = [
-                    np.expand_dims(scaled_ts_data, axis=0), # Time-series input
-                    np.array([activity_index]) # Categorical input
-                ]
-
-                last_prediction = model.predict(model_input, verbose=0)[0][0]
+                # Store the prediction for the next iteration's plot
+                last_prediction = current_prediction
                 print(f"Prediction for next interval: {last_prediction:.4f}s")
             else:
                 print(f"Collecting initial data... {len(data_queue)}/{SEQUENCE_LENGTH} intervals gathered.")
