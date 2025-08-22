@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler, LabelEncoder
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Embedding, Concatenate, Flatten
@@ -52,7 +52,7 @@ def build_multi_input_model(ts_shape, num_activities, embedding_dim=5):
 
     # --- Merged Branch ---
     merged = Concatenate()([lstm_out, embedding_out])
-    merged = Dense(50, activation='relu')(merged)
+    merged = Dense(25)(merged) # Removed ReLU activation
     merged = Dropout(0.2)(merged)
     output = Dense(1, name='output')(merged)
 
@@ -87,7 +87,7 @@ def main():
     df_cat = df[categorical_feature]
     df_target = df[target_variable]
 
-    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaler = StandardScaler()
     scaled_features = scaler.fit_transform(df_features)
     joblib.dump(scaler, SCALER_FILE)
     print(f"Scaler for {len(features_to_use)} features saved.")
