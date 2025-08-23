@@ -57,7 +57,13 @@ def main():
 
     plt.ion()
     fig, ax = plt.subplots(figsize=(12, 6))
-    time_steps, actual_rtts, predicted_rtts = [], [], []
+
+    # Initialize data stores
+    plot_points_to_keep = int(PLOT_HISTORY_SECONDS / TIME_INTERVAL_SECONDS)
+    time_steps = deque(maxlen=plot_points_to_keep)
+    actual_rtts = deque(maxlen=plot_points_to_keep)
+    predicted_rtts = deque(maxlen=plot_points_to_keep)
+    error_history = deque(maxlen=plot_points_to_keep) # For calculating rolling MAPE
 
     features_to_use = [
         'length_sum', 'rtt_mean', 'rtt_min', 'rtt_max', 'rtt_std',
@@ -110,25 +116,27 @@ def main():
                     print("No TCP packets detected. Overriding prediction to 0.")
                     current_prediction = 0.0
 
-                # Plot the actual RTT from this interval and the prediction made in the *last* interval
+                # Use the prediction from the previous step for this interval's error calculation
+                pred = last_prediction if last_prediction is not None else 0
+
+                # Calculate MAPE
+                epsilon = 1e-8 # To avoid division by zero
+                error = np.abs((actual_rtt_value - pred) / (actual_rtt_value + epsilon)) * 100
+                error_history.append(error)
+                mape = np.mean(error_history)
+
+                # Update data for plotting
                 time_steps.append(time_counter)
                 actual_rtts.append(actual_rtt_value)
-                predicted_rtts.append(last_prediction if last_prediction is not None else 0)
-
-                # Limit plot history to the last N seconds
-                plot_points_to_keep = int(PLOT_HISTORY_SECONDS / TIME_INTERVAL_SECONDS)
-                if len(time_steps) > plot_points_to_keep:
-                    time_steps.pop(0)
-                    actual_rtts.pop(0)
-                    predicted_rtts.pop(0)
+                predicted_rtts.append(pred)
 
                 # Update the plot
                 ax.clear()
-                ax.plot(time_steps, actual_rtts, 'bo-', label='Actual RTT')
-                ax.plot(time_steps, predicted_rtts, 'ro--', label='Predicted RTT')
+                ax.plot(list(time_steps), list(actual_rtts), 'bo-', label='Actual RTT')
+                ax.plot(list(time_steps), list(predicted_rtts), 'ro--', label='Predicted RTT')
                 ax.set_xlabel(f"Time Intervals ({TIME_INTERVAL_SECONDS}s each)")
                 ax.set_ylabel("Round-Trip Time (s)")
-                ax.set_title(f"Real-Time vs. Predicted RTT (Activity: {args.activity})")
+                ax.set_title(f"Real-Time vs. Predicted RTT (MAPE: {mape:.2f}%)")
                 ax.legend()
                 ax.grid(True)
                 fig.canvas.draw()
