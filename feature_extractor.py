@@ -72,9 +72,10 @@ def process_packets(packets, laptop_ip, interval):
     """
     data = []
     for pkt in packets:
-        record = {'timestamp': pkt.time, 'length': len(pkt)}
+        record = {'timestamp': pkt.time, 'length': len(pkt), 'is_from_laptop': 0}
         if IP in pkt:
-            record['is_from_laptop'] = 1 if pkt[IP].src == laptop_ip else 0
+            if pkt[IP].src == laptop_ip:
+                record['is_from_laptop'] = 1
         data.append(record)
 
     if not data:

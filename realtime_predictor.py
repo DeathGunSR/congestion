@@ -93,7 +93,10 @@ def main():
                 if has_tcp:
                     # --- Make new prediction for the NEXT interval ---
                     ts_data = np.array(list(data_queue))
-                    scaled_ts_data = scaler.transform(ts_data)
+
+                    # Convert to DataFrame to preserve feature names for the scaler
+                    ts_df = pd.DataFrame(ts_data, columns=features_to_use)
+                    scaled_ts_data = scaler.transform(ts_df)
 
                     model_input = [
                         np.expand_dims(scaled_ts_data, axis=0),
