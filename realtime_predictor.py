@@ -35,6 +35,7 @@ def main():
     parser.add_argument("--ip", required=True, help="The IP address of this machine.")
     parser.add_argument("--iface", required=True, help="The network interface to sniff on.")
     parser.add_argument("--activity", required=True, help="The type of activity being performed (e.g., 'web_browsing').")
+    parser.add_argument("--bias-correction", type=float, default=0.0, help="A constant to subtract from predictions for manual calibration.")
     args = parser.parse_args()
 
     print("Loading trained model, scaler, and activity map...")
@@ -110,25 +111,28 @@ def main():
                         np.array([activity_index])
                     ]
 
-                    current_prediction = model.predict(model_input, verbose=0)[0][0]
+                    raw_prediction = model.predict(model_input, verbose=0)[0][0]
+                    # Apply bias correction and clip at zero
+                    current_prediction = max(0.0, raw_prediction - args.bias_correction)
                 else:
                     # If no TCP packets, override prediction to 0
                     print("No TCP packets detected. Overriding prediction to 0.")
                     current_prediction = 0.0
 
                 # Use the prediction from the previous step for this interval's error calculation
-                pred = last_prediction if last_prediction is not None else 0
+                pred_for_error_plot = last_prediction if last_prediction is not None else 0
 
-                # Calculate MAPE
-                epsilon = 1e-8 # To avoid division by zero
-                error = np.abs((actual_rtt_value - pred) / (actual_rtt_value + epsilon)) * 100
-                error_history.append(error)
-                mape = np.mean(error_history)
+                # Calculate MAPE only if actual RTT is not zero
+                if actual_rtt_value > 0:
+                    error = np.abs((actual_rtt_value - pred_for_error_plot) / actual_rtt_value) * 100
+                    error_history.append(error)
+
+                mape = np.mean(error_history) if error_history else 0.0
 
                 # Update data for plotting
                 time_steps.append(time_counter)
                 actual_rtts.append(actual_rtt_value)
-                predicted_rtts.append(pred)
+                predicted_rtts.append(pred_for_error_plot)
 
                 # Update the plot
                 ax.clear()

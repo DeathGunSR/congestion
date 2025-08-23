@@ -54,9 +54,10 @@ The real-time predictor now **requires you to specify the activity** so the mode
     ```bash
     # Example for predicting 'gaming' traffic
     # Note: Requires admin/sudo privileges
-    sudo python realtime_predictor.py --ip 192.168.1.103 --iface wlan0 --activity gaming
+    sudo python realtime_predictor.py --ip 192.168.1.103 --iface wlan0 --activity gaming --bias-correction 0.005
     ```
     - Replace `YOUR_IP`, `wlan0`, and `gaming` with your specific configuration. The activity name must be one of the labels found during the parsing step (and present in `activity_map.json`).
+    - The optional `--bias-correction` argument allows you to manually subtract a small constant value (e.g., 0.005 for 5ms) from the model's prediction to correct for any consistent positive bias.
 
 The script will open a live plot and start predicting congestion, using the context you provided to make a more intelligent forecast.
 
