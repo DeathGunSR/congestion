@@ -17,6 +17,7 @@ SCALER_FILE = 'scaler.gz'
 ACTIVITY_MAP_FILE = 'activity_map.json'
 SEQUENCE_LENGTH = 10
 TIME_INTERVAL_SECONDS = 0.5
+PLOT_HISTORY_SECONDS = 45
 
 # --- Prediction Thresholds ---
 SEVERE_CONGESTION_THRESHOLD = 0.1
@@ -113,6 +114,13 @@ def main():
                 time_steps.append(time_counter)
                 actual_rtts.append(actual_rtt_value)
                 predicted_rtts.append(last_prediction if last_prediction is not None else 0)
+
+                # Limit plot history to the last N seconds
+                plot_points_to_keep = int(PLOT_HISTORY_SECONDS / TIME_INTERVAL_SECONDS)
+                if len(time_steps) > plot_points_to_keep:
+                    time_steps.pop(0)
+                    actual_rtts.pop(0)
+                    predicted_rtts.pop(0)
 
                 # Update the plot
                 ax.clear()
