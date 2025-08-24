@@ -173,5 +173,11 @@ def main():
     model.save(MODEL_FILE)
     print(f"Model saved to {MODEL_FILE}")
 
+    # Save model statistics for the predictor to use
+    stats = {'test_accuracy': accuracy}
+    with open('model_stats.json', 'w') as f:
+        json.dump(stats, f, indent=4)
+    print(f"Model stats saved to model_stats.json")
+
 if __name__ == '__main__':
     main()
