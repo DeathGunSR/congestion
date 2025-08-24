@@ -99,6 +99,8 @@ def process_packets(packets, laptop_ip, interval):
 
     if rtt_records:
         rtt_df = pd.DataFrame(rtt_records)
+        rtt_df['timestamp'] = pd.to_numeric(rtt_df['timestamp'], errors='coerce')
+        rtt_df.dropna(subset=['timestamp'], inplace=True)
         rtt_df['timestamp'] = pd.to_datetime(rtt_df['timestamp'], unit='s')
         df = pd.merge_asof(df.sort_values('timestamp'), rtt_df.sort_values('timestamp'), on='timestamp', direction='backward')
         df['rtt'] = df['rtt'].ffill().fillna(0)

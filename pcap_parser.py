@@ -1,6 +1,7 @@
 import os
 import json
 import pandas as pd
+import argparse
 from scapy.all import rdpcap
 from feature_extractor import process_packets
 
@@ -8,7 +9,6 @@ from feature_extractor import process_packets
 DATA_DIR = 'data'
 PROCESSED_CSV_FILE = 'processed_data.csv'
 ACTIVITY_MAP_FILE = 'activity_map.json'
-LAPTOP_IP = '192.168.1.100'
 TIME_INTERVAL = '500ms'
 
 def get_activity_from_filename(filename):
@@ -20,6 +20,12 @@ def main():
     Parses all pcap files in the DATA_DIR, processes them, adds an activity
     label, and saves the combined data to a single CSV file.
     """
+    parser = argparse.ArgumentParser(
+        description="Parse .pcap files, extract features, and create a unified dataset."
+    )
+    parser.add_argument("--ip", required=True, help="The IP address of the machine where the .pcap files were captured.")
+    args = parser.parse_args()
+
     if not os.path.exists(DATA_DIR):
         os.makedirs(DATA_DIR)
         print(f"Created directory '{DATA_DIR}'. Please add your .pcap files there.")
@@ -44,8 +50,7 @@ def main():
         json.dump(activity_map, f, indent=4)
     print(f"Activity map saved to '{ACTIVITY_MAP_FILE}'")
 
-    default_ip = LAPTOP_IP
-    print(f"Using default IP for all files: {default_ip}")
+    print(f"Using IP address {args.ip} for all files.")
 
     for pcap_file in pcap_files:
         filepath = os.path.join(DATA_DIR, pcap_file)
@@ -58,7 +63,7 @@ def main():
             print(f"Error reading pcap file '{filepath}': {e}")
             continue
 
-        aggregated_df = process_packets(packets, default_ip, TIME_INTERVAL)
+        aggregated_df = process_packets(packets, args.ip, TIME_INTERVAL)
 
         if not aggregated_df.empty:
             activity_name = get_activity_from_filename(pcap_file)

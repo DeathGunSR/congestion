@@ -34,8 +34,9 @@ The model learns to distinguish between normal and problematic traffic patterns 
 
 3.  **Run the Parser:** This script processes all files in `data/` and generates `processed_data.csv` and `activity_map.json`.
     ```bash
-    python pcap_parser.py
+    python pcap_parser.py --ip YOUR_IP
     ```
+    - Replace `YOUR_IP` with the IP address of the machine where the `.pcap` files were captured.
 
 4.  **Run the Training Script:** This trains the new classification model.
     ```bash
