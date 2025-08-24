@@ -118,9 +118,32 @@ def main():
         print("Not enough data to create sequences.")
         return
 
+    # --- Data Diagnostics ---
+    unique_labels, counts = np.unique(y, return_counts=True)
+    label_counts = dict(zip(unique_labels, counts))
+    stable_count = label_counts.get(0, 0)
+    worsening_count = label_counts.get(1, 0)
+    total_count = stable_count + worsening_count
+
+    print("\n--- Training Data Diagnostics ---")
+    if total_count > 0:
+        stable_perc = (stable_count / total_count) * 100
+        worsening_perc = (worsening_count / total_count) * 100
+        print(f"Generated Label Distribution:")
+        print(f"  - Stable (0):    {stable_count} samples ({stable_perc:.2f}%)")
+        print(f"  - Worsening (1): {worsening_count} samples ({worsening_perc:.2f}%)")
+        if worsening_count == 0:
+            print("\nWarning: No 'Worsening' samples were found. The model cannot learn to predict congestion.")
+        elif worsening_perc < 5:
+            print("\nWarning: Very few 'Worsening' samples found. The model may be heavily biased towards predicting 'Stable'.")
+    else:
+        print("No labels were generated from the data.")
+    print("---------------------------------\n")
+
+
     # Split all three arrays together
     X_ts_train, X_ts_test, X_cat_train, X_cat_test, y_train, y_test = train_test_split(
-        X_ts, X_cat, y, test_size=0.2, random_state=42
+        X_ts, X_cat, y, test_size=0.2, random_state=42, stratify=y if worsening_count > 1 else None
     )
     print(f"Data split into {len(X_ts_train)} training samples and {len(X_ts_test)} testing samples.")
 
