@@ -28,19 +28,27 @@ def load_data(filepath):
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     return df
 
-def create_sequences(data, categorical_data, rtt_data, seq_length, horizon, threshold=0.20):
+def create_sequences(data, categorical_data, rtt_data, loss_data, seq_length, horizon, rtt_threshold=0.20):
     X_ts, X_cat, y = [], [], []
     for i in range(len(data) - seq_length - horizon):
-        # Current RTT is the last RTT in the input sequence
-        current_rtt = rtt_data[i + seq_length - 1]
-        # Future RTT is the mean RTT in the prediction horizon
-        future_rtt = rtt_data[(i + seq_length):(i + seq_length + horizon)].mean()
+        # Define the future window
+        future_window = (i + seq_length)
+        future_end = i + seq_length + horizon
 
-        # Create the binary label
-        if current_rtt > 0 and (future_rtt - current_rtt) / current_rtt > threshold:
-            label = 1 # Congestion worsening
+        # --- Define Label based on RTT increase OR Packet Loss ---
+        label = 0 # Default to 'Stable'
+
+        # Condition 1: Significant Packet Loss in the future
+        future_packet_loss = loss_data[future_window:future_end].sum()
+        if future_packet_loss > 0:
+            label = 1
+
+        # Condition 2: Significant RTT increase in the future
         else:
-            label = 0 # Stable or improving
+            current_rtt = rtt_data[i + seq_length - 1]
+            future_rtt = rtt_data[future_window:future_end].mean()
+            if current_rtt > 0.001 and (future_rtt - current_rtt) / current_rtt > rtt_threshold:
+                label = 1
 
         y.append(label)
         X_ts.append(data[i:(i + seq_length)])
@@ -83,8 +91,8 @@ def main():
 
     features_to_use = [
         'length_sum', 'rtt_mean', 'rtt_min', 'rtt_max', 'rtt_std',
-        'packet_count', 'rtt_mean_trend', 'packet_count_trend',
-        'length_sum_trend', 'rtt_volatility'
+        'packet_count', 'lost_packet_count', 'rtt_mean_trend',
+        'packet_count_trend', 'length_sum_trend', 'rtt_volatility'
     ]
     categorical_feature = 'activity_type'
     target_variable = 'rtt_mean'
@@ -96,15 +104,15 @@ def main():
 
     df_features = df[features_to_use]
     df_cat = df[categorical_feature]
-    # We pass the raw rtt data to create_sequences for calculating the label
     df_rtt = df[target_variable]
+    df_loss = df['lost_packet_count']
 
     scaler = StandardScaler()
     scaled_features = scaler.fit_transform(df_features)
     joblib.dump(scaler, SCALER_FILE)
     print(f"Scaler for {len(features_to_use)} features saved.")
 
-    X_ts, X_cat, y = create_sequences(scaled_features, df_cat.values, df_rtt.values, SEQUENCE_LENGTH, PREDICTION_HORIZON)
+    X_ts, X_cat, y = create_sequences(scaled_features, df_cat.values, df_rtt.values, df_loss.values, SEQUENCE_LENGTH, PREDICTION_HORIZON)
 
     if len(X_ts) == 0:
         print("Not enough data to create sequences.")

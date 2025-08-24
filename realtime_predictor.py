@@ -59,8 +59,8 @@ def main():
 
     features_to_use = [
         'length_sum', 'rtt_mean', 'rtt_min', 'rtt_max', 'rtt_std',
-        'packet_count', 'rtt_mean_trend', 'packet_count_trend',
-        'length_sum_trend', 'rtt_volatility'
+        'packet_count', 'lost_packet_count', 'rtt_mean_trend',
+        'packet_count_trend', 'length_sum_trend', 'rtt_volatility'
     ]
     data_queue = deque(maxlen=SEQUENCE_LENGTH)
 
