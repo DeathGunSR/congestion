@@ -28,13 +28,24 @@ def load_data(filepath):
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     return df
 
-def create_sequences(data, categorical_data, target, seq_length, horizon):
+def create_sequences(data, categorical_data, rtt_data, seq_length, horizon, threshold=0.20):
     X_ts, X_cat, y = [], [], []
-    for i in range(len(data) - seq_length - horizon + 1):
+    for i in range(len(data) - seq_length - horizon):
+        # Current RTT is the last RTT in the input sequence
+        current_rtt = rtt_data[i + seq_length - 1]
+        # Future RTT is the mean RTT in the prediction horizon
+        future_rtt = rtt_data[(i + seq_length):(i + seq_length + horizon)].mean()
+
+        # Create the binary label
+        if current_rtt > 0 and (future_rtt - current_rtt) / current_rtt > threshold:
+            label = 1 # Congestion worsening
+        else:
+            label = 0 # Stable or improving
+
+        y.append(label)
         X_ts.append(data[i:(i + seq_length)])
-        # The activity type is constant for the sequence, so we take the last one
         X_cat.append(categorical_data[i + seq_length - 1])
-        y.append(target[(i + seq_length):(i + seq_length + horizon)].mean())
+
     return np.array(X_ts), np.array(X_cat), np.array(y)
 
 def build_multi_input_model(ts_shape, num_activities, embedding_dim=5):
@@ -52,12 +63,12 @@ def build_multi_input_model(ts_shape, num_activities, embedding_dim=5):
 
     # --- Merged Branch ---
     merged = Concatenate()([lstm_out, embedding_out])
-    merged = Dense(25)(merged) # Removed ReLU activation
+    merged = Dense(25, activation='relu')(merged)
     merged = Dropout(0.2)(merged)
-    output = Dense(1, name='output')(merged)
+    output = Dense(1, activation='sigmoid', name='output')(merged)
 
     model = Model(inputs=[ts_input, cat_input], outputs=output)
-    model.compile(optimizer='adam', loss='mean_squared_error')
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
     print("Multi-input model built successfully.")
     model.summary()
@@ -85,14 +96,15 @@ def main():
 
     df_features = df[features_to_use]
     df_cat = df[categorical_feature]
-    df_target = df[target_variable]
+    # We pass the raw rtt data to create_sequences for calculating the label
+    df_rtt = df[target_variable]
 
     scaler = StandardScaler()
     scaled_features = scaler.fit_transform(df_features)
     joblib.dump(scaler, SCALER_FILE)
     print(f"Scaler for {len(features_to_use)} features saved.")
 
-    X_ts, X_cat, y = create_sequences(scaled_features, df_cat.values, df_target.values, SEQUENCE_LENGTH, PREDICTION_HORIZON)
+    X_ts, X_cat, y = create_sequences(scaled_features, df_cat.values, df_rtt.values, SEQUENCE_LENGTH, PREDICTION_HORIZON)
 
     if len(X_ts) == 0:
         print("Not enough data to create sequences.")
@@ -123,8 +135,9 @@ def main():
     )
 
     print("Model training complete.")
-    loss = model.evaluate([X_ts_test, X_cat_test], y_test)
-    print(f"\nTest Loss (MSE): {loss}")
+    loss, accuracy = model.evaluate([X_ts_test, X_cat_test], y_test)
+    print(f"\nTest Loss: {loss:.4f}")
+    print(f"Test Accuracy: {accuracy*100:.2f}%")
 
     model.save(MODEL_FILE)
     print(f"Model saved to {MODEL_FILE}")
