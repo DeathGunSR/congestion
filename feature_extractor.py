@@ -111,7 +111,11 @@ def process_packets(packets, laptop_ip, interval):
     df['lost_packet'] = 0
     if lost_packets_ts:
         # For each lost packet, find the closest timestamp in the main df and mark it as lost
-        lost_times = pd.to_datetime(lost_packets_ts, unit='s')
+        # Ensure timestamps are numeric before conversion
+        numeric_lost_ts = pd.to_numeric(lost_packets_ts, errors='coerce')
+        valid_lost_ts = [ts for ts in numeric_lost_ts if pd.notna(ts)]
+        lost_times = pd.to_datetime(valid_lost_ts, unit='s')
+
         # Use searchsorted to find insertion points, which corresponds to nearest index
         indices = df['timestamp'].searchsorted(lost_times)
         # To avoid index out of bounds
