@@ -28,44 +28,12 @@ def get_network_interface():
 
 def main():
     parser = argparse.ArgumentParser(description="Predict network congestion trends in real-time.")
-    parser.add_argument("--ip", help="The IP address of this machine.")
-    parser.add_argument("--iface", help="The network interface to sniff on.")
-    parser.add_argument("--activity", help="The type of activity: e.g., 'web'.")
-    parser.add_argument("--list-interfaces", action="store_true", help="List available network interfaces and exit.")
+    parser.add_argument("--ip", required=True, help="The IP address of this machine.")
+    parser.add_argument("--iface", required=True, help="The network interface to sniff on.")
+    parser.add_argument("--activity", required=True, help="The type of activity: e.g., 'web'.")
     args = parser.parse_args()
 
-    # --- Interface Listing ---
-    if args.list_interfaces:
-        print("Querying available network interfaces...")
-        try:
-            available_interfaces = get_network_interface()
-            if not available_interfaces:
-                 print("No interfaces found. Try running with administrator/sudo privileges.")
-            else:
-                print("Available interfaces:")
-                for iface in available_interfaces:
-                    print(f"  - {iface}")
-        except Exception as e:
-            print(f"An error occurred while getting interfaces: {e}")
-        return
-
-    # --- Argument Validation ---
-    if not all([args.ip, args.iface, args.activity]):
-        parser.error("Arguments --ip, --iface, and --activity are required if not using --list-interfaces.")
-
     print("Loading resources...")
-
-    # --- Interface Validation ---
-    try:
-        available_interfaces = get_network_interface()
-        if args.iface not in available_interfaces:
-            print(f"\nError: Interface '{args.iface}' not found.")
-            print("Please choose from the available interfaces:")
-            for iface in available_interfaces:
-                print(f"  - {iface}")
-            return
-    except Exception as e:
-        print(f"Warning: Could not verify network interface list due to an error: {e}")
     try:
         model = load_model(MODEL_FILE)
         scaler = joblib.load(SCALER_FILE)
