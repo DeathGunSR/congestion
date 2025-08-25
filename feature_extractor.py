@@ -103,9 +103,11 @@ def process_packets(packets, laptop_ip, interval):
         rtt_df.dropna(subset=['timestamp'], inplace=True)
         rtt_df['timestamp'] = pd.to_datetime(rtt_df['timestamp'], unit='s')
         df = pd.merge_asof(df.sort_values('timestamp'), rtt_df.sort_values('timestamp'), on='timestamp', direction='backward')
-        df['rtt'] = df['rtt'].ffill().fillna(0)
+        # Fill missing RTTs with a high value representing a timeout, instead of 0
+        df['rtt'] = df['rtt'].ffill().fillna(PACKET_LOSS_TIMEOUT)
     else:
-        df['rtt'] = 0
+        # If there are no RTT records at all, all RTTs should be considered timed out
+        df['rtt'] = PACKET_LOSS_TIMEOUT
 
     # Add a column for lost packets
     df['lost_packet'] = 0
