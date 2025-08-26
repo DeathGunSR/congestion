@@ -2,60 +2,51 @@ import pandas as pd
 from scapy.all import *
 import numpy as np
 
-PACKET_LOSS_TIMEOUT = 3.0 # Seconds, increased to be more conservative
+# This constant is now only used for imputing the RTT of lost packets.
+PACKET_LOSS_TIMEOUT = 3.0
 
 def analyze_tcp_flow(packets, laptop_ip):
     """
-    Analyzes TCP packets to calculate RTT and detect lost packets using a
-    more robust single-pass, sliding-window method.
+    Analyzes TCP packets to calculate RTT and detect lost packets by identifying
+    TCP retransmissions, which is a more accurate method than timers.
     """
-    # Ensure packets are sorted by time, as the logic depends on it.
     try:
         packets.sort(key=lambda p: p.time)
     except Exception as e:
-        print(f"Warning: Could not sort packets by time. Assuming they are pre-sorted. Error: {e}")
+        print(f"Warning: Could not sort packets by time. Assuming pre-sorted. Error: {e}")
 
-
-    sent_packets = {}
+    sent_packets = {}  # {seq: timestamp}
     rtt_records = []
     lost_packets_ts = []
 
     for pkt in packets:
-        current_time = pkt.time
-
-        # Before processing the current packet, check for timeouts in the sent_packets buffer.
-        # A packet is considered lost if it has been unacknowledged for too long.
-        timed_out_seqs = []
-        for seq, sent_time in sent_packets.items():
-            if current_time - sent_time > PACKET_LOSS_TIMEOUT:
-                timed_out_seqs.append(seq)
-                lost_packets_ts.append(sent_time)
-
-        # Remove timed-out packets from the buffer
-        for seq in timed_out_seqs:
-            del sent_packets[seq]
-
-        # Now, process the current packet
         if not (TCP in pkt and IP in pkt):
             continue
 
         src_ip = pkt[IP].src
         dst_ip = pkt[IP].dst
+        seq = pkt[TCP].seq
+        ack = pkt[TCP].ack
 
-        # If it's an outgoing data packet, add it to our buffer
+        # It's an outgoing data packet from our machine
         if src_ip == laptop_ip and len(pkt[TCP].payload) > 0:
-            sent_packets[pkt[TCP].seq] = pkt.time
-        # If it's an incoming ACK, calculate RTT and remove from buffer
+            # Check if this sequence number has been sent before but not acked.
+            if seq in sent_packets:
+                # This is a retransmission. The original packet is considered lost.
+                lost_packets_ts.append(sent_packets[seq])
+
+            # Record the time of this (potentially new) transmission.
+            sent_packets[seq] = pkt.time
+
+        # It's an incoming ACK for data we sent
         elif dst_ip == laptop_ip and pkt[TCP].flags & 0x10:
-            ack = pkt[TCP].ack
+            # Check if this is an ACK for a packet we have in our sent buffer.
             if ack in sent_packets:
                 sent_time = sent_packets.pop(ack)
-                rtt = current_time - sent_time
-                rtt_records.append({'timestamp': current_time, 'rtt': float(rtt)})
+                rtt = pkt.time - sent_time
+                rtt_records.append({'timestamp': pkt.time, 'rtt': float(rtt)})
 
-    # Note: Any packets remaining in sent_packets at the end of the capture are
-    # considered ambiguous and are discarded, not counted as lost. This avoids
-    -    # the end-of-file problem of the previous logic.
+    # Any packets left in sent_packets are ambiguous and ignored.
     return rtt_records, lost_packets_ts
 
 def resample_and_engineer_features(df, interval):
@@ -106,6 +97,7 @@ def process_packets(packets, laptop_ip, interval):
         return pd.DataFrame()
 
     df = pd.DataFrame(data)
+    # Ensure timestamp is numeric before converting to datetime
     df['timestamp'] = pd.to_numeric(df['timestamp'], errors='coerce').dropna()
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
 
@@ -113,9 +105,11 @@ def process_packets(packets, laptop_ip, interval):
 
     if rtt_records:
         rtt_df = pd.DataFrame(rtt_records)
+        # Ensure timestamp is numeric before converting to datetime
         rtt_df['timestamp'] = pd.to_numeric(rtt_df['timestamp'], errors='coerce')
         rtt_df.dropna(subset=['timestamp'], inplace=True)
         rtt_df['timestamp'] = pd.to_datetime(rtt_df['timestamp'], unit='s')
+
         df = pd.merge_asof(df.sort_values('timestamp'), rtt_df.sort_values('timestamp'), on='timestamp', direction='backward')
         # Fill missing RTTs with a high value representing a timeout, instead of 0
         df['rtt'] = df['rtt'].ffill().fillna(PACKET_LOSS_TIMEOUT)
@@ -126,9 +120,10 @@ def process_packets(packets, laptop_ip, interval):
     # Add a column for lost packets
     df['lost_packet'] = 0
     if lost_packets_ts:
-        # For each lost packet, find the closest timestamp in the main df and mark it as lost
+        # Ensure timestamp is numeric before converting to datetime
         numeric_lost_ts = pd.to_numeric(pd.Series(lost_packets_ts), errors='coerce').dropna()
         lost_times = pd.to_datetime(numeric_lost_ts, unit='s')
+
         # Use searchsorted to find insertion points, which corresponds to nearest index
         indices = df['timestamp'].searchsorted(lost_times)
         # To avoid index out of bounds
