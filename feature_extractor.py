@@ -6,42 +6,56 @@ PACKET_LOSS_TIMEOUT = 3.0 # Seconds, increased to be more conservative
 
 def analyze_tcp_flow(packets, laptop_ip):
     """
-    Analyzes TCP packets to calculate RTT and detect lost packets.
-    Returns a list of RTT records and a list of timestamps for lost packets.
+    Analyzes TCP packets to calculate RTT and detect lost packets using a
+    more robust single-pass, sliding-window method.
     """
+    # Ensure packets are sorted by time, as the logic depends on it.
+    try:
+        packets.sort(key=lambda p: p.time)
+    except Exception as e:
+        print(f"Warning: Could not sort packets by time. Assuming they are pre-sorted. Error: {e}")
+
+
     sent_packets = {}
     rtt_records = []
     lost_packets_ts = []
 
-    if not packets:
-        return rtt_records, lost_packets_ts
-
-    # Get the time of the last packet to establish a 'now' for timeout checks
-    last_packet_time = packets[-1].time
-
-    # First pass: Match ACKs to calculate RTT
     for pkt in packets:
+        current_time = pkt.time
+
+        # Before processing the current packet, check for timeouts in the sent_packets buffer.
+        # A packet is considered lost if it has been unacknowledged for too long.
+        timed_out_seqs = []
+        for seq, sent_time in sent_packets.items():
+            if current_time - sent_time > PACKET_LOSS_TIMEOUT:
+                timed_out_seqs.append(seq)
+                lost_packets_ts.append(sent_time)
+
+        # Remove timed-out packets from the buffer
+        for seq in timed_out_seqs:
+            del sent_packets[seq]
+
+        # Now, process the current packet
         if not (TCP in pkt and IP in pkt):
             continue
 
         src_ip = pkt[IP].src
         dst_ip = pkt[IP].dst
 
+        # If it's an outgoing data packet, add it to our buffer
         if src_ip == laptop_ip and len(pkt[TCP].payload) > 0:
             sent_packets[pkt[TCP].seq] = pkt.time
+        # If it's an incoming ACK, calculate RTT and remove from buffer
         elif dst_ip == laptop_ip and pkt[TCP].flags & 0x10:
             ack = pkt[TCP].ack
             if ack in sent_packets:
-                sent_time = sent_packets.pop(ack) # Remove as it's acknowledged
-                rtt = pkt.time - sent_time
-                rtt_records.append({'timestamp': pkt.time, 'rtt': float(rtt)})
+                sent_time = sent_packets.pop(ack)
+                rtt = current_time - sent_time
+                rtt_records.append({'timestamp': current_time, 'rtt': float(rtt)})
 
-    # Second pass: Check remaining unacknowledged packets for timeouts
-    for seq, timestamp in list(sent_packets.items()):
-        if last_packet_time - timestamp > PACKET_LOSS_TIMEOUT:
-            lost_packets_ts.append(timestamp)
-            del sent_packets[seq] # Remove from dict after counting as lost
-
+    # Note: Any packets remaining in sent_packets at the end of the capture are
+    # considered ambiguous and are discarded, not counted as lost. This avoids
+    -    # the end-of-file problem of the previous logic.
     return rtt_records, lost_packets_ts
 
 def resample_and_engineer_features(df, interval):
