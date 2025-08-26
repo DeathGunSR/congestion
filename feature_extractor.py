@@ -2,7 +2,7 @@ import pandas as pd
 from scapy.all import *
 import numpy as np
 
-PACKET_LOSS_TIMEOUT = 1.5 # Seconds
+PACKET_LOSS_TIMEOUT = 3.0 # Seconds, increased to be more conservative
 
 def analyze_tcp_flow(packets, laptop_ip):
     """
